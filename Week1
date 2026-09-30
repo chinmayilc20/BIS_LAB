@@ -184,6 +184,3 @@ for i, quantity in enumerate(best_chromosome):
 diet_df = pd.DataFrame(diet_plan_details)
 print("\nDetailed Diet Plan:")
 display(diet_df)
-
-
-OUTPUT: 
