@@ -1,0 +1,189 @@
+import random
+import pandas as pd
+
+
+food_items = [
+    {'name': 'Chicken Breast', 'cost': 2.5, 'calories': 165, 'protein': 31},
+    {'name': 'Brown Rice', 'cost': 0.5, 'calories': 123, 'protein': 3},
+    {'name': 'Broccoli', 'cost': 1.0, 'calories': 55, 'protein': 4},
+    {'name': 'Eggs', 'cost': 0.3, 'calories': 70, 'protein': 6},
+    {'name': 'Oats', 'cost': 0.4, 'calories': 389, 'protein': 13},
+    {'name': 'Salmon', 'cost': 4.0, 'calories': 208, 'protein': 20},
+    {'name': 'Spinach', 'cost': 0.8, 'calories': 23, 'protein': 3},
+    {'name': 'Greek Yogurt', 'cost': 1.2, 'calories': 59, 'protein': 10},
+    {'name': 'Apple', 'cost': 0.7, 'calories': 95, 'protein': 0},
+    {'name': 'Almonds', 'cost': 1.5, 'calories': 576, 'protein': 21},
+    {'name': 'Lentils', 'cost': 0.6, 'calories': 116, 'protein': 9}
+]
+
+
+daily_targets = {
+    'calories': 2000,
+    'protein': 150
+}
+
+
+NUTRIENT_SHORTFALL_PENALTY = 10.0
+
+print("Food items and daily targets defined.\n")
+
+
+
+
+def calculate_fitness(chromosome, food_items, daily_targets, penalty_factor):
+    total_cost = 0
+    total_calories = 0
+    total_protein = 0
+
+    for i, quantity in enumerate(chromosome):
+        food = food_items[i]
+        total_cost += quantity * food['cost']
+        total_calories += quantity * food['calories']
+        total_protein += quantity * food['protein']
+
+    
+    calorie_shortfall = max(0, daily_targets['calories'] - total_calories)
+    protein_shortfall = max(0, daily_targets['protein'] - total_protein)
+
+   
+    penalty = (calorie_shortfall + protein_shortfall) * penalty_factor
+
+    # Fitness is 1 / (cost + penalty)
+    # Add a small epsilon to avoid division by zero if cost + penalty is 0
+    fitness = 1 / (total_cost + penalty + 1e-6)
+    return fitness, total_cost, total_calories, total_protein
+
+
+def create_individual(num_food_items, max_quantity=5):
+    return [random.randint(0, max_quantity) for _ in range(num_food_items)]
+
+
+def select_parent(population, fitnesses, k=3):
+    tournament_contestants_indices = random.sample(range(len(population)), k)
+    tournament_contestants = [(population[i], fitnesses[i]) for i in tournament_contestants_indices]
+    return max(tournament_contestants, key=lambda x: x[1])[0]
+
+
+def uniform_crossover(parent1, parent2):
+    child1 = []
+    child2 = []
+    for gene1, gene2 in zip(parent1, parent2):
+        if random.random() < 0.5:
+            child1.append(gene1)
+            child2.append(gene2)
+        else:
+            child1.append(gene2)
+            child2.append(gene1)
+    return child1, child2
+
+
+def mutate(chromosome, mutation_rate, max_quantity=10):
+    mutated_chromosome = list(chromosome)
+    for i in range(len(mutated_chromosome)):
+        if random.random() < mutation_rate:
+            change = random.choice([-1, 1])
+            mutated_chromosome[i] = max(0, mutated_chromosome[i] + change)
+            mutated_chromosome[i] = min(max_quantity, mutated_chromosome[i])
+    return mutated_chromosome
+
+print("Genetic Algorithm components defined.\n")
+
+
+def genetic_algorithm(
+    food_items,
+    daily_targets,
+    population_size=100,
+    generations=100,
+    mutation_rate=0.1,
+    max_food_quantity=10,
+    penalty_factor=NUTRIENT_SHORTFALL_PENALTY
+):
+    num_food_items = len(food_items)
+
+ 
+    population = [create_individual(num_food_items, max_quantity=max_food_quantity) for _ in range(population_size)]
+
+    best_solution = None
+    best_fitness_overall = -1
+    best_cost_overall = float('inf')
+    best_nutrients_overall = {'calories': 0, 'protein': 0}
+
+    print(f"Starting Genetic Algorithm for {generations} generations with population size {population_size}...")
+
+    for generation in range(generations):
+        
+        fitnesses_and_details = [
+            calculate_fitness(individual, food_items, daily_targets, penalty_factor)
+            for individual in population
+        ]
+        fitnesses = [f[0] for f in fitnesses_and_details]
+
+     
+        current_best_idx = fitnesses.index(max(fitnesses))
+        current_best_individual = population[current_best_idx]
+        current_best_fitness, current_best_cost, current_best_calories, current_best_protein = fitnesses_and_details[current_best_idx]
+
+   
+        if current_best_fitness > best_fitness_overall:
+            best_fitness_overall = current_best_fitness
+            best_solution = current_best_individual
+            best_cost_overall = current_best_cost
+            best_nutrients_overall = {'calories': current_best_calories, 'protein': current_best_protein}
+
+        
+        if generation % (generations // 10 or 1) == 0:
+            print(f"Generation {generation}: Best Fitness = {best_fitness_overall:.4f}, Cost = ${best_cost_overall:.2f}, Calories = {best_nutrients_overall['calories']:.0f}, Protein = {best_nutrients_overall['protein']:.0f}")
+
+        
+        new_population = []
+        for _ in range(population_size // 2):
+            parent1 = select_parent(population, fitnesses)
+            parent2 = select_parent(population, fitnesses)
+
+            child1, child2 = uniform_crossover(parent1, parent2)
+
+            child1 = mutate(child1, mutation_rate, max_quantity=max_food_quantity)
+            child2 = mutate(child2, mutation_rate, max_quantity=max_food_quantity)
+
+            new_population.extend([child1, child2])
+        population = new_population
+
+    print("\nGenetic Algorithm finished.")
+    return best_solution, best_cost_overall, best_nutrients_overall
+
+
+print("Running the Genetic Algorithm with specified parameters...")
+algorithm_result = genetic_algorithm(
+    food_items,
+    daily_targets,
+    population_size=200,
+    generations=200,
+    mutation_rate=0.05,
+    max_food_quantity=5
+)
+
+best_chromosome, final_cost, final_nutrients = algorithm_result
+
+print("\n--- Best Diet Plan Found ---")
+print(f"Total Cost: ${final_cost:.2f}")
+print(f"Total Calories: {final_nutrients['calories']:.0f} (Target: {daily_targets['calories']})")
+print(f"Total Protein: {final_nutrients['protein']:.0f} (Target: {daily_targets['protein']})")
+
+diet_plan_details = []
+for i, quantity in enumerate(best_chromosome):
+    if quantity > 0:
+        food = food_items[i]
+        diet_plan_details.append({
+            'Food Item': food['name'],
+            'Quantity': quantity,
+            'Cost': quantity * food['cost'],
+            'Calories': quantity * food['calories'],
+            'Protein': quantity * food['protein']
+        })
+
+diet_df = pd.DataFrame(diet_plan_details)
+print("\nDetailed Diet Plan:")
+display(diet_df)
+
+
+OUTPUT: 
